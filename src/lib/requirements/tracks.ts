@@ -12,13 +12,93 @@ export const TRACKS_SOURCE_URL =
 
 export type TrackArea = "cs" | "ai_d" | "ee";
 
+/**
+ * “One of column A and one of column B” (two distinct subjects). Lists may overlap;
+ * the evaluator allocates slot1 before slot2 so one completion cannot satisfy both.
+ */
+export interface TrackPairSlots {
+  slot1: string[];
+  slot2: string[];
+  slotTitles: [string, string];
+}
+
 export interface Track {
   id: string;
   area: TrackArea;
   name: string;
   subjects: string[];
   subRulesNote?: string;
+  pairSlots?: TrackPairSlots;
 }
+
+/** Application CI-M or AI+D AUS column (MIT EECS tracks chart). */
+const APPLICATION_CIM_OR_AI_D_AUS_SUBJECTS = u(
+  "18.404",
+  "6.3730",
+  "6.4200",
+  "6.4210",
+  "6.5151",
+  "6.5831",
+  "6.7411",
+  "6.8301",
+  "6.8371",
+  "6.8611",
+  "6.8701",
+  "6.8711",
+);
+
+/** “Centers” column under Centers + (Application CI-M or AI+D AUS) on the chart. */
+const AI_D_CENTERS_COLUMN_SUBJECTS = u(
+  "6.1220",
+  "6.3000",
+  "6.3100",
+  "6.3260",
+  "6.3720",
+  "6.3730",
+  "6.3900",
+  "6.3950",
+  "6.4100",
+  "6.4110",
+  "6.4120",
+  "6.4200",
+  "6.4400",
+  "6.4590",
+  "6.5151",
+  "6.5831",
+  "6.7411",
+  "6.8301",
+  "6.8371",
+  "6.8611",
+  "6.8701",
+  "6.C35",
+  "6.C571",
+  "9.660",
+  "18.404",
+);
+
+/** Hardware & Software: second column (“and one of the following…”). */
+const EE_HW_SW_COLUMN_2_SUBJECTS = u(
+  "18.404",
+  "6.1040",
+  "6.1060",
+  "6.1100",
+  "6.1120",
+  "6.1220",
+  "6.1400",
+  "6.1420",
+  "6.1600",
+  "6.1810",
+  "6.1820",
+  "6.1850",
+  "6.3900",
+  "6.4500",
+  "6.4510",
+  "6.4550",
+  "6.4590",
+  "6.5081",
+  "6.5831",
+  "6.C35",
+);
 
 function u(...ids: string[]): string[] {
   return [...new Set(ids)];
@@ -168,49 +248,17 @@ export const TRACKS: Track[] = [
     id: "ai_d.centers",
     area: "ai_d",
     name: "Centers and (Application CI-M or AI+D AUS)",
-    subjects: u(
-      // Centers column (one of)
-      "6.1220",
-      "6.1400",
-      "6.3000",
-      "6.3100",
-      "6.3260",
-      "6.3720",
-      "6.3900",
-      "6.3950",
-      "6.4110",
-      "6.4120",
-      "6.4400",
-      "6.4420",
-      "6.4590",
-      "6.C01",
-      "6.C011",
-      "6.C35",
-      "6.C395",
-      "6.C51",
-      "6.C511",
-      "6.C571",
-      "9.660",
-      // Application CI-M / AI+D AUS column (one of)
-      "18.404",
-      "6.3020",
-      "6.3730",
-      "6.4200",
-      "6.4210",
-      "6.4300",
-      "6.4610",
-      "6.5151",
-      "6.5831",
-      "6.5931",
-      "6.7411",
-      "6.8371",
-      "6.8611",
-      "6.8701",
-      "6.8711",
-      "6.8801",
-    ),
+    subjects: u(...AI_D_CENTERS_COLUMN_SUBJECTS, ...APPLICATION_CIM_OR_AI_D_AUS_SUBJECTS),
+    pairSlots: {
+      slot1: AI_D_CENTERS_COLUMN_SUBJECTS,
+      slot2: APPLICATION_CIM_OR_AI_D_AUS_SUBJECTS,
+      slotTitles: [
+        "Centers list (one of)",
+        "Application CI-M or AI+D AUS (one of)",
+      ],
+    },
     subRulesNote:
-      "Chart: complete one subject from the Centers list and one from the Application CI-M or AI+D AUS list (not two from the same column alone). Course Compass counts any two subjects from the combined list — verify against the official chart.",
+      "Complete one subject listed under the Centers column and one from the Application CI-M or AI+D AUS offerings (two distinct subjects).",
   },
 
   // -------------------------------------------------------------------------
@@ -221,17 +269,29 @@ export const TRACKS: Track[] = [
     id: "ee.biomedical",
     area: "ee",
     name: "Biomedical Systems",
-    subjects: ["6.4800", "6.4820", "6.4830", "6.4850", "6.4860", "6.C27"],
+    subjects: u("6.4800", "6.4810", "6.4820", "6.4830", "6.4860"),
+    pairSlots: {
+      slot1: ["6.4800"],
+      slot2: ["6.4810", "6.4820", "6.4830", "6.4860"],
+      slotTitles: [
+        "6.4800 Imaging (required pairing anchor)",
+        "One of the physiology / systems subjects",
+      ],
+    },
     subRulesNote:
-      "Chart structure may require specific pairings; verify on the official tracks page.",
+      "6.4800 plus one of 6.4810, 6.4820, 6.4830, or 6.4860 per the official tracks chart.",
   },
   {
     id: "ee.communications",
     area: "ee",
     name: "Communications and Networks",
-    subjects: ["6.1800", "6.3000", "6.3010", "6.7411"],
-    subRulesNote:
-      "Chart may require 6.7411 plus one of {6.1800, 6.3000, 6.3010}; Course Compass uses a flat allowlist.",
+    subjects: u("6.7411", "6.1800", "6.3000", "6.3010"),
+    pairSlots: {
+      slot1: ["6.7411"],
+      slot2: ["6.1800", "6.3000", "6.3010"],
+      slotTitles: ["6.7411 Principles of Digital Communication", "One of the paired subjects"],
+    },
+    subRulesNote: "6.7411 plus one of 6.1800, 6.3000, or 6.3010.",
   },
   {
     id: "ee.architecture",
@@ -255,7 +315,7 @@ export const TRACKS: Track[] = [
     id: "ee.devices_circuits",
     area: "ee",
     name: "Devices, Circuits, and Systems",
-    subjects: [
+    subjects: u(
       "6.2040",
       "6.2050",
       "6.2060",
@@ -266,9 +326,28 @@ export const TRACKS: Track[] = [
       "6.2300",
       "6.2320",
       "6.2500",
-    ],
+    ),
+    pairSlots: {
+      slot1: ["6.2040", "6.2080", "6.2090"],
+      slot2: [
+        "6.2040",
+        "6.2050",
+        "6.2060",
+        "6.2080",
+        "6.2090",
+        "6.2220",
+        "6.2221",
+        "6.2300",
+        "6.2320",
+        "6.2500",
+      ],
+      slotTitles: [
+        "First column (one of lab / devices intro)",
+        "Second column (one of circuits / systems)",
+      ],
+    },
     subRulesNote:
-      "Chart: one of {6.2040, 6.2080, 6.2090} and one of the circuits/systems subjects — Course Compass does not enforce the pairing.",
+      "One subject from the first group and one from the second group on the chart (lists overlap; two distinct completions required).",
   },
   {
     id: "ee.electromagnetics",
@@ -286,108 +365,62 @@ export const TRACKS: Track[] = [
     id: "ee.energy",
     area: "ee",
     name: "Energy Systems",
-    subjects: [
-      "6.2200",
-      "6.2210",
-      "6.2220",
-      "6.2221",
-      "6.3100",
-      "6.6220",
-      "6.7120",
-      "6.7121",
-    ],
-    subRulesNote:
-      "Chart: 6.2200 plus one of the others — Course Compass uses a flat allowlist.",
+    subjects: u("6.2200", "6.2210", "6.2220", "6.2221"),
+    pairSlots: {
+      slot1: ["6.2200"],
+      slot2: ["6.2210", "6.2220", "6.2221"],
+      slotTitles: ["6.2200 Electric Energy Systems", "One follow-on subject"],
+    },
+    subRulesNote: "6.2200 plus one of 6.2210, 6.2220, or 6.2221 per the official tracks chart.",
   },
   {
     id: "ee.hardware_design",
     area: "ee",
     name: "Hardware Design",
-    subjects: ["6.1920", "6.2050", "6.2060", "6.6010"],
+    subjects: u("6.1920", "6.2050", "6.2060"),
+    pairSlots: {
+      slot1: ["6.1920"],
+      slot2: ["6.2050", "6.2060"],
+      slotTitles: ["6.1920 Constructive Computer Architecture", "6.2050 or 6.2060 (not both overall)"],
+    },
     subRulesNote:
-      "Students can take 6.2050 OR 6.2060, but not both (see chart).",
+      "Chart lists 6.1920 with 6.2050/6.2060; you cannot count both 6.2050 and 6.2060 toward the degree.",
   },
   {
     id: "ee.hw_sw",
     area: "ee",
     name: "Hardware and Software",
-    subjects: u(
-      "6.1800",
-      "18.404",
-      "6.1040",
-      "6.1060",
-      "6.1100",
-      "6.1120",
-      "6.1220",
-      "6.1400",
-      "6.1420",
-      "6.1600",
-      "6.1810",
-      "6.1820",
-      "6.1850",
-      "6.1852",
-      "6.3950",
-      "6.4500",
-      "6.4510",
-      "6.4530",
-      "6.4550",
-      "6.4590",
-      "6.5060",
-      "6.5080",
-      "6.5081",
-      "6.5110",
-      "6.5120",
-      "6.5210",
-      "6.5220",
-      "6.5230",
-      "6.5240",
-      "6.5250",
-      "6.5310",
-      "6.5320",
-      "6.5340",
-      "6.5350",
-      "6.5370",
-      "6.5380",
-      "6.5390",
-      "6.5400",
-      "6.5410",
-      "6.5420",
-      "6.5430",
-      "6.5480",
-      "6.5490",
-      "6.5610",
-      "6.5620",
-      "6.5630",
-      "6.5660",
-      "6.5810",
-      "6.5820",
-      "6.5830",
-      "6.5831",
-      "6.5840",
-      "6.5850",
-      "6.6410",
-      "6.8510",
-      "6.8530",
-      "6.C35",
-      "6.C395",
-      "6.C85",
-    ),
-    subRulesNote:
-      "Chart: 6.1800 plus one subject from the second column — Course Compass does not enforce the pairing.",
+    subjects: u("6.1800", ...EE_HW_SW_COLUMN_2_SUBJECTS),
+    pairSlots: {
+      slot1: ["6.1800"],
+      slot2: EE_HW_SW_COLUMN_2_SUBJECTS,
+      slotTitles: ["6.1800 Computer Systems Engineering (CI-M)", "Second column (one of)"],
+    },
+    subRulesNote: "6.1800 plus one subject from the chart’s second column.",
   },
   {
     id: "ee.nanoelectronics",
     area: "ee",
     name: "Nanoelectronics",
-    subjects: ["6.2500", "6.2540", "6.2600", "6.6500"],
-    subRulesNote:
-      "Chart: 6.2500 plus one of {6.2540, 6.2600, 6.6500}.",
+    subjects: u("6.2500", "6.2540", "6.2600"),
+    pairSlots: {
+      slot1: ["6.2500"],
+      slot2: ["6.2540", "6.2600"],
+      slotTitles: ["6.2500 Nanoelectronics and Computing Systems", "One of the follow-on subjects"],
+    },
+    subRulesNote: "6.2500 plus one of 6.2540 or 6.2600 per the official tracks chart.",
   },
   {
     id: "ee.quantum",
     area: "ee",
     name: "Quantum Systems Engineering",
-    subjects: ["6.2400", "6.2410", "6.6400", "6.6410", "6.6420", "6.6450"],
+    subjects: u("6.2400", "6.2410"),
+    pairSlots: {
+      slot1: ["6.2400"],
+      slot2: ["6.2410"],
+      slotTitles: ["6.2400 Introduction to Quantum Systems Engineering", "6.2410 Quantum Engineering Platforms"],
+    },
+    subRulesNote: "Both subjects on the chart row are required for this track pairing.",
   },
   {
     id: "ee.systems_science",
@@ -446,6 +479,40 @@ export function trackNode(args: {
 }): RequirementNode {
   const t = TRACKS_BY_ID[args.trackId];
   if (!t) throw new Error(`Unknown track: ${args.trackId}`);
+  if (t.pairSlots) {
+    if (args.count !== 2) {
+      throw new Error(
+        `Track "${args.trackId}" uses column pairings and must be evaluated with count 2 (got ${args.count}).`,
+      );
+    }
+    const ps = t.pairSlots;
+    return {
+      kind: "all",
+      id: args.id,
+      title: args.title ?? `${t.name} track (one from each column)`,
+      children: [
+        {
+          kind: "tag",
+          id: `${args.id}.slot1`,
+          title: ps.slotTitles[0],
+          allowedIds: ps.slot1,
+          count: 1,
+          sourceUrl: TRACKS_SOURCE_URL,
+        },
+        {
+          kind: "tag",
+          id: `${args.id}.slot2`,
+          title: ps.slotTitles[1],
+          allowedIds: ps.slot2,
+          count: 1,
+          sourceUrl: TRACKS_SOURCE_URL,
+        },
+      ],
+      childrenAllocateDistinctCourses: true,
+      description: t.subRulesNote ? `Track: ${t.subRulesNote}` : undefined,
+      sourceUrl: TRACKS_SOURCE_URL,
+    };
+  }
   return {
     kind: "tag",
     id: args.id,

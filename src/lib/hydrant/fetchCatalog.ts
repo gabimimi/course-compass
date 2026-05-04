@@ -39,6 +39,48 @@ interface HydrantData {
   classes: Record<string, HydrantCourse>;
 }
 
+/**
+ * Hydrant sometimes serves the SPA shell as `{slug}.json` (200 + HTML) while
+ * `latest.json` still exposes the same term via `termInfo.urlName`.
+ */
+async function loadHydrantJsonData(termSlug: string | null): Promise<HydrantData> {
+  const primaryUrl = termSlug
+    ? `https://hydrant.mit.edu/${termSlug}.json`
+    : "https://hydrant.mit.edu/latest.json";
+
+  const tryParse = async (jsonUrl: string): Promise<HydrantData | null> => {
+    const res = await fetch(jsonUrl, {
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const trimmed = (await res.text()).trim();
+    if (!trimmed.startsWith("{")) return null;
+    try {
+      const data = JSON.parse(trimmed) as HydrantData;
+      if (!data.termInfo?.urlName) return null;
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const primary = await tryParse(primaryUrl);
+  if (primary) {
+    if (!termSlug || primary.termInfo.urlName === termSlug) return primary;
+  }
+
+  if (termSlug) {
+    const latest = await tryParse("https://hydrant.mit.edu/latest.json");
+    if (latest && latest.termInfo.urlName === termSlug) return latest;
+  }
+
+  throw new Error(
+    termSlug
+      ? `Hydrant catalog JSON for ${termSlug} was missing or not valid JSON (tried ${primaryUrl} and latest.json)`
+      : "Hydrant latest.json was missing or invalid",
+  );
+}
+
 const DAY_MAP: Record<string, MeetingTime["day"]> = {
   M: "M",
   T: "T",
@@ -121,30 +163,7 @@ export async function fetchHydrantForIds(
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean);
 
-  const jsonUrl = term
-    ? `https://hydrant.mit.edu/${term}.json`
-    : "https://hydrant.mit.edu/latest.json";
-
-  const res = await fetch(jsonUrl, {
-    next: { revalidate: 3600 },
-  });
-  if (!res.ok) {
-    throw new Error(`Hydrant returned ${res.status} for ${jsonUrl}`);
-  }
-  const rawText = await res.text();
-  const trimmed = rawText.trim();
-  if (!trimmed.startsWith("{")) {
-    throw new Error(`Hydrant payload for ${jsonUrl} was not JSON`);
-  }
-  let data: HydrantData;
-  try {
-    data = JSON.parse(trimmed) as HydrantData;
-  } catch {
-    throw new Error(`Hydrant JSON parse failed for ${jsonUrl}`);
-  }
-  if (!data.termInfo?.urlName) {
-    throw new Error(`Hydrant JSON missing termInfo for ${jsonUrl}`);
-  }
+  const data = await loadHydrantJsonData(term ?? null);
 
   const results: HydrantResult[] = normalized.map((id) => {
     const lower = id.toLowerCase();
@@ -202,14 +221,7 @@ export async function fetchHydrantForIds(
  */
 export async function getHydrantClassIdSetForTerm(termSlug: string): Promise<Set<string> | null> {
   try {
-    const jsonUrl = `https://hydrant.mit.edu/${termSlug}.json`;
-    const res = await fetch(jsonUrl, {
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return null;
-    const trimmed = (await res.text()).trim();
-    if (!trimmed.startsWith("{")) return null;
-    const data = JSON.parse(trimmed) as HydrantData;
+    const data = await loadHydrantJsonData(termSlug);
     const set = new Set<string>();
     for (const k of Object.keys(data.classes ?? {})) {
       set.add(k.toLowerCase());

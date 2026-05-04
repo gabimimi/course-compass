@@ -35,40 +35,6 @@ npm run dev
 
 Open http://localhost:3000.
 
-## Deploy (recommended: Vercel + GitHub)
-
-This app needs a **Next.js–capable host** (API routes, server-side embeddings). **GitHub Pages alone is not enough.** The simplest production setup:
-
-### 1. Push the repo to GitHub
-
-Use `course-compass` as the repo root (the folder that contains `package.json`). Ensure `data/build/courses.json` and `data/build/embeddings.json` are committed so production does not need `npm run build:data` on every deploy.
-
-### 2. Import into Vercel
-
-1. Go to [vercel.com](https://vercel.com) and sign in with GitHub.
-2. **Add New Project** → select this repository.
-3. **Framework Preset:** Next.js (auto-detected).
-4. **Root Directory:** leave `.` if the repo is only `course-compass`; if the repo is a monorepo, set it to the folder that contains `package.json`.
-5. **Environment variables** (required for chat):
-
-   | Name | Value |
-   |------|--------|
-   | `ANTHROPIC_API_KEY` | Your Anthropic API key (`sk-ant-…`) |
-
-   Add it for **Production** (and **Preview** if you want PR previews to run chat).
-
-6. Click **Deploy**.
-
-Vercel runs `npm run build` automatically. Your `next.config.ts` already tells the bundler to include `data/build/**/*.json` for API routes.
-
-### 3. Optional: CI on GitHub
-
-This repo includes `.github/workflows/ci.yml`, which runs `npm ci` and `npm run build` on pushes and pull requests to `main` / `master`, so broken builds are caught before or alongside Vercel.
-
-### 4. After deploy
-
-Open the `.vercel.app` URL Vercel assigns, test chat and degree progress. Rotate the API key if it was ever committed (it should stay only in Vercel env + local `.env.local`, never in git).
-
 ## Project layout
 
 ```
@@ -82,7 +48,7 @@ src/
       courses/route.ts      # GET  /api/courses - search
       progress/route.ts     # POST /api/progress - evaluate major
   components/
-    TopNav.tsx
+    AppShell.tsx            # layout shell + navigation
     chat/                   # CategoryBadge, Citations, MajorPicker
     progress/               # CourseSearch, RequirementTree
     schedule/               # WeekGrid (conflict detection)

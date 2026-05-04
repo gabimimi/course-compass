@@ -216,7 +216,7 @@ OUTPUT STRICT JSON ONLY (no markdown fences, no commentary, no leading/trailing 
     "wantsScheduleFit": <bool>
   },
   "mentionedMajorIds": ["<canonical major IDs in order of mention, e.g. ['6-3','6-14']; empty array if none>"],
-  "mentionedCourseIds": ["<each course ID like '6.3260', '18.06', '6.C395' that the user mentions; empty array if none>"]
+  "mentionedCourseIds": ["<each course ID like '6.3260', '18.06', '6.C395', 'CMS.303' that the user mentions; empty array if none>"]
 }
 
 If a filter doesn't apply, use null. Always include all seven intent flags.
@@ -261,7 +261,7 @@ export async function classifyQuestion(
   // LLM forgets to populate the array.
   const fromModel = Array.isArray(result.mentionedCourseIds)
     ? result.mentionedCourseIds.filter(
-        (s): s is string => typeof s === "string" && /^\d{1,2}\.[0-9A-Za-z]+$/i.test(s),
+        (s): s is string => typeof s === "string" && isValidMentionedCourseId(s),
       )
     : [];
   const fromText = extractCourseIdsFromText(question);
@@ -300,15 +300,25 @@ function extractMajorIdsFromText(text: string): string[] {
   return [...out];
 }
 
-/** Pull X.YYYY-style IDs out of the literal user question (case-insensitive on the segment after the dot). */
+/**
+ * Pull MIT subject IDs from literal text: numeric dept (6.1010), letter dept (CMS.303),
+ * or mixed (21M.011). Case-insensitive.
+ */
 export function extractCourseIdsFromText(text: string): string[] {
-  const re = /\b(\d{1,2})\.([0-9A-Za-z]+)\b/g;
+  const re =
+    /\b(?:\d{1,2}|[A-Z]{2,}[A-Z0-9]*|\d+[A-Z][A-Z0-9]*)\.([0-9A-Za-z][0-9A-Za-z]*)\b/gi;
   const out = new Set<string>();
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
-    out.add(`${m[1]}.${m[2]}`);
+    out.add(m[0]);
   }
   return [...out];
+}
+
+function isValidMentionedCourseId(s: string): boolean {
+  return /^(?:\d{1,2}|[A-Z]{2,}[A-Z0-9]*|\d+[A-Z][A-Z0-9]*)\.([0-9A-Za-z][0-9A-Za-z]*)$/i.test(
+    s.trim(),
+  );
 }
 
 const KNOWN_MAJOR_IDS = new Set(["6-3", "6-4", "6-5", "6-7", "6-9", "6-14"]);

@@ -7,6 +7,7 @@
  *   - "course": a specific course (or one of a set of accepted IDs)
  *   - "tag": any course matching a tag (e.g., HASS-A, CI-M, GIR LAB)
  *   - "department": any course in a department, optionally above some level
+ *   - "units_outside_gir": total units in completed subjects with no GIR tag in data
  *
  * Each leaf node carries its own "units" (or "count") expectation; aggregator
  * nodes ("all", "any") combine children's contributions and can also enforce a
@@ -24,10 +25,11 @@ export type RequirementNode =
   | AnyNode
   | CourseNode
   | TagNode
-  | DepartmentNode;
+  | DepartmentNode
+  | UnitsOutsideGirNode;
 
 export interface BaseNode {
-  /** Stable id, used by UI for keying and progress tracking. */
+  /** Stable id, used for UI keying and progress tracking. */
   id: string;
   /** Human-readable title, e.g., "Foundation: Programming". */
   title: string;
@@ -36,11 +38,35 @@ export interface BaseNode {
   sourceUrl?: string;
 }
 
+/**
+ * 6-3 restricted electives (flex row) cannot reuse the four subjects that satisfy
+ * the two per-track elective requirements. Cross-cutting CI-M, AUS, and II
+ * rules are still evaluated without that restriction.
+ */
+export interface RestrictedElectiveRule {
+  /** Direct child (tag or department) for the restricted elective row (`count` ≥ 1). */
+  flexChildId: string;
+  /** Sibling `perTrackAny` node ids — union of their satisfied courses is excluded from the flex match. */
+  consumeFromChildIds: string[];
+}
+
 export interface AllNode extends BaseNode {
   kind: "all";
   children: RequirementNode[];
+  /**
+   * When true, earlier children “consume” completed course ids for this subtree:
+   * later siblings cannot reuse those ids. Used for tracks structured as
+   * “one of column A and one of column B” where the same subject may appear in both lists.
+   */
+  childrenAllocateDistinctCourses?: boolean;
   /** Optional minimum total units across satisfied children. */
   minUnits?: number;
+  /**
+   * When set (6-3 elective block), evaluate `consumeFromChildIds` first, then
+   * the flex child with those course ids removed from consideration; other
+   * children use the normal completed set.
+   */
+  restrictedElectiveRule?: RestrictedElectiveRule;
 }
 
 export interface AnyNode extends BaseNode {
@@ -99,6 +125,12 @@ export interface DepartmentNode extends BaseNode {
   minUnits?: number;
   /** Whether course must be at undergraduate level. */
   undergradOnly?: boolean;
+}
+
+/** MIT SB: at least 180 units in subjects outside the GIR scope; evaluation is a catalog-data approximation. */
+export interface UnitsOutsideGirNode extends BaseNode {
+  kind: "units_outside_gir";
+  minUnits: number;
 }
 
 export interface MajorRequirement {

@@ -198,6 +198,11 @@ function LeafRow({ status }: { status: NodeStatus }) {
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const multiNeed =
+    status.node.kind === "tag" || status.node.kind === "department"
+      ? (status.node.count ?? 1)
+      : 1;
+
   const assignedCourses = manualAssignments[status.node.id] ?? [];
 
   function submitAssignment() {
@@ -236,10 +241,16 @@ function LeafRow({ status }: { status: NodeStatus }) {
         </span>
 
         {/* Satisfied-by chips */}
-        {status.satisfiedBy.length > 0 && (
-          <span className="text-xs text-[var(--progress-stat-on-track)] font-mono shrink-0">
-            {status.satisfiedBy.join(", ")}
+        {status.node.kind === "units_outside_gir" ? (
+          <span className="text-xs text-[var(--progress-stat-on-track)] shrink-0 tabular-nums">
+            {status.label}
           </span>
+        ) : (
+          status.satisfiedBy.length > 0 && (
+            <span className="text-xs text-[var(--progress-stat-on-track)] font-mono shrink-0">
+              {status.satisfiedBy.join(", ")}
+            </span>
+          )
         )}
 
         {isOverridden && !complete && (
@@ -258,7 +269,7 @@ function LeafRow({ status }: { status: NodeStatus }) {
         )}
 
         {/* Add course button */}
-        {!addingCourse && (
+        {!addingCourse && status.node.kind !== "units_outside_gir" && (
           <button
             onClick={() => {
               setAddingCourse(true);
@@ -286,6 +297,14 @@ function LeafRow({ status }: { status: NodeStatus }) {
           </a>
         )}
       </div>
+
+      {multiNeed > 1 && !complete && !isOverridden && (
+        <p className="mt-0.5 ml-6 text-[10px] text-[var(--muted)] leading-snug">
+          This requirement needs <strong className="text-foreground/90">{multiNeed}</strong>{" "}
+          courses. Add each to <strong>Completed</strong> (or use + for special numbers) — it stays
+          partial until all are counted, unless you use the checkmark for credit taken elsewhere.
+        </p>
+      )}
 
       {/* Manually-assigned course chips */}
       {assignedCourses.length > 0 && (
@@ -660,7 +679,7 @@ function leafCounts(node: NodeStatus): { done: number; total: number } {
   const kind = node.node.kind;
   const children = node.children ?? [];
 
-  if (children.length === 0 || kind === "course" || kind === "tag" || kind === "department") {
+  if (children.length === 0 || kind === "course" || kind === "tag" || kind === "department" || kind === "units_outside_gir") {
     return { done: node.state === "complete" ? 1 : 0, total: 1 };
   }
 

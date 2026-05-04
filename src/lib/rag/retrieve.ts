@@ -111,6 +111,105 @@ function lexicalScore(course: Course, query: string): number {
   return hits / tokens.length;
 }
 
+/** Stopwords for topic-token overlap (embedding-only queries). */
+const TOPIC_STOPWORDS = new Set([
+  "about",
+  "after",
+  "again",
+  "another",
+  "any",
+  "before",
+  "being",
+  "between",
+  "class",
+  "classes",
+  "course",
+  "courses",
+  "could",
+  "does",
+  "every",
+  "first",
+  "from",
+  "good",
+  "great",
+  "have",
+  "into",
+  "listed",
+  "looking",
+  "mit",
+  "need",
+  "offer",
+  "offered",
+  "other",
+  "please",
+  "really",
+  "should",
+  "since",
+  "some",
+  "still",
+  "subject",
+  "subjects",
+  "such",
+  "take",
+  "taking",
+  "tell",
+  "thanks",
+  "that",
+  "their",
+  "there",
+  "these",
+  "thing",
+  "things",
+  "think",
+  "those",
+  "through",
+  "under",
+  "until",
+  "want",
+  "week",
+  "were",
+  "what",
+  "when",
+  "where",
+  "which",
+  "while",
+  "will",
+  "with",
+  "would",
+  "your",
+]);
+
+function significantTopicTokens(q: string): string[] {
+  return q
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((t) => t.length >= 5 && !TOPIC_STOPWORDS.has(t));
+}
+
+function courseTextMatchesAnyToken(c: Course, tokens: string[]): boolean {
+  const text = `${c.title} ${c.description}`.toLowerCase();
+  return tokens.some((t) => text.includes(t));
+}
+
+/**
+ * Pure embedding similarity can surface unrelated courses (e.g. cryptography for
+ * "distributed systems"). When the query looks like a topic search — several
+ * meaningful words and no subject number — downrank courses whose title/description
+ * share none of those words with the question.
+ */
+function applyTopicLexicalGate(
+  score: number,
+  c: Course,
+  query: string,
+  opts: { active: boolean },
+): number {
+  if (!opts.active) return score;
+  const tokens = significantTopicTokens(query);
+  if (tokens.length < 2) return score;
+  if (courseTextMatchesAnyToken(c, tokens)) return score;
+  return score * 0.22;
+}
+
 /**
  * Retrieve top-k relevant courses for the query.
  */
@@ -135,6 +234,12 @@ export async function retrieve(
     score: 1.0,
     reason: "exact",
   }));
+
+  /** Topic-style query text embedding — penalize courses with no word overlap with question. */
+  const topicLexicalGateActive =
+    (filters.similarToCourseIds?.length ?? 0) === 0 &&
+    idMentions.length === 0 &&
+    !filters.listMode;
 
   // List-mode short-circuit: when the user asked "list all X that Y", and the
   // structured filters narrowed down a finite set, return the entire filtered
@@ -190,26 +295,30 @@ export async function retrieve(
         return { course: c, score: -1, reason: "filter" as const };
       }
       const i = idIndex.get(c.id);
+      let score: number;
       if (i !== undefined) {
-        return {
-          course: c,
-          score: cosine(qVec, emb.vectors[i]),
-          reason: "semantic" as const,
-        };
+        score = cosine(qVec, emb.vectors[i]);
+      } else {
+        score = lexicalScore(c, query) * 0.6;
       }
+      score = applyTopicLexicalGate(score, c, query, {
+        active: topicLexicalGateActive,
+      });
       return {
         course: c,
-        score: lexicalScore(c, query) * 0.6,
-        reason: "filter" as const,
+        score,
+        reason: (i !== undefined ? "semantic" : "filter") as "semantic" | "filter",
       };
     });
   } catch (err) {
     console.error("[retrieve] embedding failed, falling back to lexical:", err);
-    semantic = filtered.map((c) => ({
-      course: c,
-      score: lexicalScore(c, query),
-      reason: "filter" as const,
-    }));
+    semantic = filtered.map((c) => {
+      let score = lexicalScore(c, query);
+      score = applyTopicLexicalGate(score, c, query, {
+        active: topicLexicalGateActive,
+      });
+      return { course: c, score, reason: "filter" as const };
+    });
   }
 
   semantic.sort((a, b) => b.score - a.score);

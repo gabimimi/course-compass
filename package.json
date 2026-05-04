@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "build:courses": "tsx scripts/fetch-courses.ts",
+    "build:courses": "tsx scripts/fetch-courses.ts && tsx scripts/merge-eecs-subject-updates.ts",
     "build:embeddings": "tsx scripts/build-embeddings.ts",
     "build:data": "npm run build:courses && npm run build:embeddings"
   },

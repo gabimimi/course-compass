@@ -47,6 +47,10 @@ import {
 } from "@/lib/hydrant/semester";
 import { CHAT_THREAD_MAX_MESSAGES } from "@/lib/chat/threadMemory";
 
+/** One full MIT subject id (6.1010, CMS.303, 21M.365) for regex composition. */
+const RE_MIT_SUBJECT_FULL =
+  "(?:\\d{1,2}|[A-Za-z]{2,}[A-Za-z0-9]*|\\d+[A-Za-z][A-Za-z0-9]*)\\.[0-9A-Za-z]+";
+
 export interface AnswerInput {
   question: string;
   classification: ClassificationResult;
@@ -202,7 +206,11 @@ function questionMeansChatHydrantSchedule(q: string): boolean {
   if (/\b(this|that|the)\s+schedule\b/.test(s)) return true;
   if (/\bmy\s+schedule\b/.test(s)) return true;
   if (/\bweekly\s+(schedule|grid)\b/.test(s)) return true;
-  if (/\b(schedule|scheduling)\b/.test(s) && /\d{1,2}\./.test(s)) return true;
+  if (
+    /\b(schedule|scheduling)\b/.test(s) &&
+    (/\d{1,2}\./.test(s) || extractCourseIdsFromText(q).length > 0)
+  )
+    return true;
   if (
     /\b(schedule|scheduling)\b/.test(s) &&
     /\b(fall|spring|summer|iap|f\d{2}|s\d{2}|m\d{2}|i\d{2})\b/.test(s)
@@ -243,10 +251,15 @@ function parseHydrantScheduleAdd(question: string): null | {
 
 /** swap X for Y / replace X with Y — used to rewrite a prior multi-course Hydrant list. */
 function parseCourseSubstitution(question: string): { from: string; to: string } | null {
-  let m = question.match(/\breplace\s+(\d{1,2}\.[0-9A-Za-z]+)\s+with\s+(\d{1,2}\.[0-9A-Za-z]+)\b/i);
+  let m = question.match(
+    new RegExp(`\\breplace\\s+(${RE_MIT_SUBJECT_FULL})\\s+with\\s+(${RE_MIT_SUBJECT_FULL})\\b`, "i"),
+  );
   if (m) return { from: m[1], to: m[2] };
   m = question.match(
-    /\bswap\s+(\d{1,2}\.[0-9A-Za-z]+)\s+(?:for|with)\s+(\d{1,2}\.[0-9A-Za-z]+)\b/i,
+    new RegExp(
+      `\\bswap\\s+(${RE_MIT_SUBJECT_FULL})\\s+(?:for|with)\\s+(${RE_MIT_SUBJECT_FULL})\\b`,
+      "i",
+    ),
   );
   if (m) return { from: m[1], to: m[2] };
   return null;
@@ -263,7 +276,10 @@ function parseCourseSubstitutionFromHistory(
   const strict = parseCourseSubstitution(question);
   if (strict) return strict;
   const loose = question.match(
-    /\breplace\s+(\d{1,2}\.[0-9A-Za-z]+)\s+with\s+(?:this\s+class|that\s+class|that\s+one|it)\b/i,
+    new RegExp(
+      `\\breplace\\s+(${RE_MIT_SUBJECT_FULL})\\s+with\\s+(?:this\\s+class|that\\s+class|that\\s+one|it)\\b`,
+      "i",
+    ),
   );
   if (!loose) return null;
   const from = loose[1];
@@ -324,7 +340,7 @@ function looksLikeFreshHydrantScheduleQuestion(question: string): boolean {
 /** Clarifications like “I meant with 6.1810 also” — keep thread schedule context. */
 function questionRefinesThreadSchedule(q: string): boolean {
   const s = q.toLowerCase();
-  if (!/\d{1,2}\./.test(s)) return false;
+  if (!/\d{1,2}\./.test(s) && extractCourseIdsFromText(q).length === 0) return false;
   return (
     /\b(i\s+meant|actually|instead)\b/.test(s) ||
     (/\b(also|plus|and)\b/.test(s) && /\b(schedule|hydrant|grid|week|class(?:es)?)\b/.test(s)) ||
@@ -350,7 +366,12 @@ function applyCourseSubstitution(baseline: string[], fromRaw: string, toRaw: str
 function questionImpliesHydrantPreviewRequest(q: string): boolean {
   if (questionMeansChatHydrantSchedule(q)) return true;
   if (parseCourseSubstitution(q)) return true;
-  if (/\breplace\s+\d{1,2}\.[0-9A-Za-z]+\s+with\s+(this\s+class|that\s+class|that\s+one|it)\b/i.test(q))
+  if (
+    new RegExp(
+      `\\breplace\\s+(${RE_MIT_SUBJECT_FULL})\\s+with\\s+(this\\s+class|that\\s+class|that\\s+one|it)\\b`,
+      "i",
+    ).test(q)
+  )
     return true;
   const s = q.toLowerCase();
   if (/\b(show|display|render|give|pull\s+up)\b/.test(s) && /\b(schedule|calendar|hydrant|weekly\s+grid)\b/.test(s))
@@ -760,7 +781,10 @@ export async function generateAnswer(input: AnswerInput): Promise<AnswerResult> 
   // Retrieval — list-mode when the user asked for "all X", similarity mode
   // when the user asked for alternatives to a specific course.
   const retrievalQuery = classification.searchQuery ?? input.question;
-  const mentionedIds = classification.mentionedCourseIds ?? [];
+  const mentionedIds = dedupeCourseIds([
+    ...(classification.mentionedCourseIds ?? []),
+    ...extractCourseIdsFromText(input.question),
+  ]);
   // We seed the similarity search with the course's own embedding when the
   // user explicitly asked for alternatives, OR when they referenced courses
   // and asked something content-like ("what's like 6.3260").
@@ -1077,7 +1101,7 @@ Hard rules:
    questions by walking that tree. Reproduce every requirement section: GIRs,
    major core, electives, tracks, cross-cutting constraints. Do not summarize
    into a vague "you need 17 GIRs and a major" — list the actual nodes.
-2. Always write course IDs literally (e.g., 6.1010) so they can be cited.
+2. Always write course IDs literally (e.g., 6.1010, CMS.303) so they can be cited.
    Never invent course IDs.
 2a. **User-facing style (CRITICAL)**: Write like a human advisor. Do **not** mention
    internal prompt labels such as MAJOR_CONTEXT, COVERAGE_CONTEXT, TRACKS_CONTEXT,
@@ -1087,6 +1111,15 @@ Hard rules:
    (two subjects from **one** CS, AI+D, or EE track). When you refer to the
    automated mapping block, call it something plain like "the course-to-requirement
    mapping from Course Compass" — never the variable-style name.
+2a-topic. **What each course is about (CRITICAL — stops catalog hallucinations)**:
+   For **every** course number you mention, treat that course's **Title** and
+   **Description** lines in COURSE_CONTEXT as the **only** truth about content and topic.
+   Do **not** describe a course using another retrieval neighbor's topics, "general
+   knowledge" about the number, or patterns you assume from course IDs. If you list
+   courses for a **topic** question (e.g. distributed systems), include a course **only**
+   if that topic clearly appears in **that** course's Title or Description; otherwise omit it
+   or say it does not match. Never label a course with a broad area (e.g. "systems") unless
+   that area appears in its Description or Title.
 2b. When **EECS_CIM2_SUBJECT_LIST** appears above, the student asked which subjects
    satisfy **EECS CI-M** / **CIM2** (second CI-M on newer Course 6 charts). List
    **every** subject ID from that block in a clear bullet or grouped list. Do **not**
@@ -1105,6 +1138,10 @@ Hard rules:
      for that requirement (e.g., two from Systems, not one Systems + one Theory).
    - The usual 6-3 pattern has TWO separate track requirements → **four** distinct
      track course enrollments minimum, unless MAJOR_CONTEXT explicitly says otherwise.
+   - The **two restricted electives** (flex / EECS list; see MAJOR_CONTEXT for the allowlist) must be **separate** subjects from the four track electives and from
+     **any other line** on the degree sheet (GIR, 6-3 core, etc.), except where **CI-M,
+     AUS, and II** cross-cutting rules explicitly allow the same class to count on
+     multiple lines.
    - Cross-cutting tags in MAJOR_CONTEXT (e.g. AUS2/grad_AUS2, CIM2, II/grad_II on
      newer charts) can overlap with electives per the chart notes — they are not
      automatically separate extra courses beyond what the tree states.
@@ -1126,8 +1163,8 @@ Hard rules:
    classes "similar to" / "instead of" / "alternatives to" a course, the
    COURSE_CONTEXT block ALREADY contains the referenced course AND the most
    semantically similar candidates, ordered by relevance. Your job is to:
-     a. Confirm what the referenced course covers (use its description from
-        COURSE_CONTEXT).
+     a. Confirm what the referenced course covers (paraphrase **only** its Title and
+        Description from COURSE_CONTEXT — same rule as 2a-topic).
      b. Recommend 3-6 specific alternative courses from COURSE_CONTEXT,
         comparing each to the original (overlap in topics, prereqs, units,
         when it's offered, requirement-counting). Be concrete.
@@ -1277,7 +1314,8 @@ function formatCourseSummary(c: Course): string {
       ? c.description.slice(0, 600) + "…"
       : c.description;
 
-  return `${c.id} — ${c.title}
+  return `[Catalog snapshot — topics below apply ONLY to ${c.id}]
+${c.id} — ${c.title}
   Tags: ${tags}
   Offered: ${offered || "TBA"}${joint}${meetsWith}${prereqs}
   Description: ${description}
@@ -1341,6 +1379,11 @@ function walkRequirementTree(
     const count = node.count ?? 1;
     out.push(
       `${indent}- DEPT (need ${count}): ${node.title} — department=${node.department}${node.minNumber ? `, min number=${node.minNumber}` : ""}${node.undergradOnly ? ", undergrad only" : ""}`,
+    );
+    if (node.description) out.push(`${indent}    note: ${node.description}`);
+  } else if (node.kind === "units_outside_gir") {
+    out.push(
+      `${indent}- UNITS OUTSIDE GIR (≥${node.minUnits}): ${node.title} — node id: ${node.id}; counts units from completed subjects with no GIR tag in catalog data (approximation).`,
     );
     if (node.description) out.push(`${indent}    note: ${node.description}`);
   }

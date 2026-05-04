@@ -7,9 +7,17 @@
 
 import { pack } from "msgpackr";
 
-/** Hydrant normalizes map keys to lowercase (e.g. "6.1010"). */
+/** Lowercase — matches keys we store from Hydrant JSON (`getHydrantClassIdSetForTerm`). */
 export function normalizeHydrantCourseId(id: string): string {
   return id.trim().toLowerCase();
+}
+
+/**
+ * Subject numbers for Hydrant share URLs must match `State.classes` Map keys
+ * from term JSON (e.g. **CMS.303**). Lowercasing breaks letter departments.
+ */
+function hydrantShareCourseNumber(id: string): string {
+  return id.trim();
 }
 
 /**
@@ -25,7 +33,7 @@ function deflateClass(courseNumber: string): string[] {
  * `[classes, customActivities, selectedOption, peClasses]`
  */
 export function buildHydrantDeflate(courseNumbers: string[]): unknown[] {
-  const normalized = courseNumbers.map(normalizeHydrantCourseId).filter(Boolean);
+  const normalized = courseNumbers.map(hydrantShareCourseNumber).filter(Boolean);
   const classes = normalized.map((n) => deflateClass(n));
   return [classes, null, 0, []];
 }

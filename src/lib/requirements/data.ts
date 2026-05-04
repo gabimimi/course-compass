@@ -26,6 +26,7 @@ import type {
   MajorRequirement,
   RequirementNode,
   TagNode,
+  UnitsOutsideGirNode,
 } from "@/lib/requirements/types";
 import {
   ADVANCED_UNDERGRAD_SUBJECTS,
@@ -58,7 +59,7 @@ import {
 // DSL helpers
 // ---------------------------------------------------------------------------
 
-/** Fifth 6-3 elective: union of chart “EECS” bucket + grad lists (MATH SB rule not encoded). */
+/** Two 6-3 restricted elective subjects: union of chart “EECS” bucket + grad lists (MATH SB rule not encoded). */
 const FLEX_ELECTIVE_IDS_FALL2026 = unionDedupe(
   EECS_CHART_SUBJECTS,
   GRAD_AI_D_AUS_SUBJECTS,
@@ -122,7 +123,9 @@ function perTrackAny(
       id: `${id}.${t.id}`,
       trackId: t.id,
       count,
-      title: `${t.name} track (${count} of: ${t.subjects.join(", ")})`,
+      title: t.pairSlots
+        ? `${t.name} track (one from each column)`
+        : `${t.name} track (${count} of: ${t.subjects.join(", ")})`,
     }),
   );
   return {
@@ -287,6 +290,24 @@ function girAll(
   );
 }
 
+/** Registrar / catalog general degree rules (SB units outside GIR). */
+const DEGREE_UNITS_OUTSIDE_GIR_URL =
+  "https://catalog.mit.edu/mit/undergraduate-education/general-degree-requirements/";
+
+function sbUnitsOutsideGir(majorPrefix: string): UnitsOutsideGirNode {
+  return {
+    kind: "units_outside_gir",
+    id: `${majorPrefix}.graduation.units_outside_gir`,
+    title: "≥180 units outside GIR (SB graduation)",
+    minUnits: 180,
+    description:
+      "Science Bachelor programs require at least 180 units in subjects outside the General Institute Requirements. " +
+      "Progress here sums units only for completed subjects with **no** GIR tag in our catalog (FireRoad `girAttribute`). " +
+      "How subjects apply on your official degree audit may differ — confirm with the registrar.",
+    sourceUrl: DEGREE_UNITS_OUTSIDE_GIR_URL,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Common foundation: intro programming + probability grounding
 // ---------------------------------------------------------------------------
@@ -373,7 +394,7 @@ const major6_3: MajorRequirement = {
     "Transcribed from the official MIT catalog 2025-2026 degree chart. " +
     "Key constraint: the two track requirements ('2 from a CS track' and '2 from a CS/AI+D/EE track') each require BOTH subjects from the SAME specific track — you cannot mix tracks within a single requirement. " +
     "Both requirements together need at least 4 distinct track courses (though the engine currently evaluates them independently and will show 'complete' for each once you have 2 from any matching track). " +
-    "Cross-cutting AUS and II constraints can be satisfied by the same courses that also satisfy track requirements.",
+    "The two restricted electives (flex) do not reuse subjects already counted on another line (core, GIR, track electives, etc.), except AUS2/CIM2/II cross-cutting overlap per the chart.",
   root: all("6-3.root", "6-3 — Computer Science and Engineering", [
     girAll("6-3", {
       restNote:
@@ -382,6 +403,7 @@ const major6_3: MajorRequirement = {
       hassDoubleCount:
         "Two HASS subjects can be satisfied by 6.3260[J] and 6.4590[J] (taken as part of a track).",
     }),
+    sbUnitsOutsideGir("6-3"),
 
     all("6-3.cs", "Computer Science Requirements", [
       eecsIntroProgramming("6-3"),
@@ -403,7 +425,7 @@ const major6_3: MajorRequirement = {
       probabilityGrounding("6-3", true),
     ]),
 
-    all("6-3.electives", "Elective Subjects (5 subjects + cross-cutting constraints)", [
+    all("6-3.electives", "Elective subjects (6 subjects + cross-cutting constraints)", [
       perTrackAny(
         "6-3.electives.cs1",
         "Two subjects from ONE specific CS track",
@@ -424,14 +446,15 @@ const major6_3: MajorRequirement = {
       ),
       dept(
         "6-3.electives.flex",
-        "Restricted Elective: satisfies a 6-3, 6-4, 6-5, or 18 degree requirement",
+        "Restricted electives: satisfy a 6-3, 6-4, 6-5, or 18 degree requirement (two subjects)",
         "6",
         {
           minNumber: 1000,
-          count: 1,
+          count: 2,
           undergradOnly: true,
           description:
-            "One subject that satisfies a degree requirement in 6-3, 6-4, 6-5, or 18. " +
+            "Two subjects that each satisfy a degree requirement in 6-3, 6-4, 6-5, or 18. " +
+            "Cannot double-count with the four subjects used for the two track-elective rows above, or with any other line on this sheet (core, GIR, etc.), except where the AUS / CI-M / II cross-cutting rows explicitly allow overlap. " +
             "Modeled here as any 6.1xxx–6.9xxx undergrad subject.",
         },
       ),
@@ -451,7 +474,14 @@ const major6_3: MajorRequirement = {
           "The same course can also satisfy a track requirement.",
         sourceUrl: GROUPINGS_SOURCE_URL,
       }),
-    ]),
+    ],
+    {
+      restrictedElectiveRule: {
+        flexChildId: "6-3.electives.flex",
+        consumeFromChildIds: ["6-3.electives.cs1", "6-3.electives.cs_aid_ee"],
+      },
+    },
+  ),
   ]),
 };
 
@@ -469,8 +499,9 @@ const major6_3_2026_2027: MajorRequirement = {
     "Fall 2025+ cohort per official EECS chart; subjects as of Fall 2026. " +
     GROUPINGS_FALL2026_NOTE +
     " Two track requirements each need both subjects from the same named track. " +
-    "Composite tracks (e.g. AI+D Centers, some EE tracks) have pairing rules on the official tracks page — Course Compass may only approximate. " +
-    "Each completed subject counts at most once toward a required subject but may satisfy multiple cross-cutting constraints.",
+    "Composite tracks with two columns on the official EECS tracks page (e.g. AI+D Centers, several EE tracks) are modeled as two sub-slots with distinct completed courses. Single-column tracks with footnotes (e.g. 6.2050 vs 6.2060) may still need a quick check against the chart. " +
+    "Each completed subject counts at most once toward a required subject but may satisfy multiple cross-cutting constraints. " +
+    "The two restricted electives do not reuse subjects counted elsewhere on the sheet (core, GIR, tracks, …); AUS2/CIM2/II cross-cutting rows omit those ids when deciding overlap per chart.",
   root: all("6-3.root", "6-3 — Computer Science and Engineering", [
     girAll("6-3", {
       restNote:
@@ -479,6 +510,7 @@ const major6_3_2026_2027: MajorRequirement = {
       hassDoubleCount:
         "Two HASS subjects can be satisfied by 6.3260[J] and 6.4590[J] (taken as part of a track).",
     }),
+    sbUnitsOutsideGir("6-3"),
 
     all("6-3.cs", "Computer Science Requirements", [
       eecsIntroProgramming("6-3"),
@@ -509,7 +541,7 @@ const major6_3_2026_2027: MajorRequirement = {
       ]),
     ]),
 
-    all("6-3.electives", "Elective subjects (5 subjects + cross-cutting constraints)", [
+    all("6-3.electives", "Elective subjects (6 subjects + cross-cutting constraints)", [
       perTrackAny(
         "6-3.electives.cs1",
         "Two subjects from ONE specific CS track",
@@ -526,11 +558,13 @@ const major6_3_2026_2027: MajorRequirement = {
         "Pick ONE track (CS, AI+D, or EE) and take BOTH subjects from that track. " +
           "Typically distinct from your first track requirement; four distinct track courses total.",
       ),
-      tag("6-3.electives.flex", "Restricted elective (EECS flex list or designated graduate lists)", {
+      tag("6-3.electives.flex", "Restricted electives (EECS flex list or designated graduate lists)", {
         allowedIds: FLEX_ELECTIVE_IDS_FALL2026,
-        count: 1,
+        count: 2,
         description:
-          "One subject from the chart EECS list, or grad_AI+D_AUS, grad_AUS2, grad_II, or Course 18 per the Math elective rule (similar-content restriction not modeled). " +
+          "Two subjects from the chart EECS list, or grad_AI+D_AUS, grad_AUS2, grad_II, or Course 18 per the Math elective rule (similar-content restriction not modeled). " +
+          "Cannot reuse the four subjects counted toward the two track-elective rows above; CI-M, AUS2, and II cross-cutting rules may still overlap per the chart. " +
+          "Course Compass also excludes any subject already counted on another line of your sheet (core, GIR, tracks, etc.), except AUS2/CIM2/II rows where the chart allows overlap. " +
           "Allowed IDs here are the union of the transcribed EECS bucket and those graduate lists.",
         sourceUrl: SOURCE_6_3_F2026,
       }),
@@ -556,7 +590,14 @@ const major6_3_2026_2027: MajorRequirement = {
           "At least one completed subject must satisfy Independent Inquiry (II or grad_II list).",
         sourceUrl: SOURCE_6_3_F2026,
       }),
-    ]),
+    ],
+    {
+      restrictedElectiveRule: {
+        flexChildId: "6-3.electives.flex",
+        consumeFromChildIds: ["6-3.electives.cs1", "6-3.electives.cs_aid_ee"],
+      },
+    },
+  ),
   ]),
 };
 
@@ -580,6 +621,7 @@ const major6_4: MajorRequirement = {
       restNote: "Satisfied by 6.1200[J] and 18.C06[J] in the Departmental Program.",
       labNote: "Satisfied by 6.1010 in the Departmental Program.",
     }),
+    sbUnitsOutsideGir("6-4"),
 
     all("6-4.fundamentals", "Fundamentals", [
       eecsIntroProgramming("6-4"),
@@ -684,6 +726,7 @@ const major6_5: MajorRequirement = {
         "Satisfied by 18.C06[J] and one of 6.1910 / 6.2000 / 6.3700 / 18.05.",
       labNote: "Can be satisfied by 6.9000 in the Departmental Program.",
     }),
+    sbUnitsOutsideGir("6-5"),
 
     all("6-5.fundamentals", "Fundamentals", [
       course("6-5.fnd.6.100A", "6.100A Intro to CS Programming in Python", ["6.100A"]),
@@ -832,6 +875,7 @@ const major6_7: MajorRequirement = {
       restNote: "Can be satisfied by 5.12 and 6.C06[J] in the Departmental Program.",
       labNote: "Satisfied by 7.003[J] or 20.109 in the Departmental Program.",
     }),
+    sbUnitsOutsideGir("6-7"),
 
     all("6-7.math_intro", "Mathematics and Introductory", [
       course("6-7.math.6.100A", "6.100A Intro to CS Programming in Python", ["6.100A"]),
@@ -928,6 +972,7 @@ const major6_9: MajorRequirement = {
       labNote: "Satisfied by a laboratory subject in the Departmental Program.",
       hassDoubleCount: "9.85 can satisfy a HASS subject in the Departmental Program.",
     }),
+    sbUnitsOutsideGir("6-9"),
 
     all("6-9.required", "Required Subjects", [
       course("6-9.req.6.100A", "6.100A Intro to CS Programming in Python", ["6.100A"]),
@@ -1077,6 +1122,7 @@ const major6_14: MajorRequirement = {
       hassDoubleCount:
         "Between 1 and 3 HASS subjects can be satisfied by Departmental-Program subjects.",
     }),
+    sbUnitsOutsideGir("6-14"),
 
     all("6-14.math", "Mathematics", [
       course("6-14.math.18.06", "18.06 Linear Algebra", ["18.06"]),
@@ -1189,7 +1235,7 @@ const major6_3_v2024: MajorRequirement = {
   notes:
     "2023-2024 / 2024-2025 catalog. Key differences from 2025-2026: (1) CS Systems " +
     "requirement is 6.1800 ONLY — no 6.1810 or 6.5831 alternatives; (2) restricted " +
-    "elective allows subjects from 6-2, 6-3, 6-4, or 18 (not 6-5). The per-track " +
+    "electives allow subjects from 6-2, 6-3, 6-4, or 18 (not 6-5). The per-track " +
     "constraint ('2 from one specific track') applies in both years.",
   root: all("6-3.root", "6-3 — Computer Science and Engineering", [
     girAll("6-3", {
@@ -1199,6 +1245,7 @@ const major6_3_v2024: MajorRequirement = {
       hassDoubleCount:
         "Two HASS subjects can be satisfied by 6.3260[J] and 6.4590[J] (taken as part of a track).",
     }),
+    sbUnitsOutsideGir("6-3"),
 
     all("6-3.cs", "Computer Science Requirements", [
       eecsIntroProgramming("6-3"),
@@ -1217,7 +1264,7 @@ const major6_3_v2024: MajorRequirement = {
       probabilityGrounding("6-3", true),
     ]),
 
-    all("6-3.electives", "Elective Subjects (5 subjects + cross-cutting constraints)", [
+    all("6-3.electives", "Elective subjects (6 subjects + cross-cutting constraints)", [
       perTrackAny(
         "6-3.electives.cs1",
         "Two subjects from ONE specific CS track",
@@ -1236,22 +1283,23 @@ const major6_3_v2024: MajorRequirement = {
       ),
       dept(
         "6-3.electives.flex",
-        "Restricted Elective: satisfies a 6-2, 6-3, 6-4, or 18 degree requirement",
+        "Restricted electives: satisfy a 6-2, 6-3, 6-4, or 18 degree requirement (two subjects)",
         "6",
         {
           minNumber: 1000,
-          count: 1,
+          count: 2,
           undergradOnly: true,
           description:
-            "2023-2024: one subject satisfying a degree requirement in 6-2, 6-3, 6-4, or 18 " +
-            "(note: 6-2 not 6-5). Modeled as any 6.1xxx–6.9xxx undergrad subject.",
+            "2023-2024: two subjects each satisfying a degree requirement in 6-2, 6-3, 6-4, or 18 " +
+            "(note: 6-2 not 6-5). Cannot double-count with the four track electives or with any other line (core, GIR, etc.) except AUS/CI-M/II cross-overlap per the chart. " +
+            "Modeled as any 6.1xxx–6.9xxx undergrad subject.",
         },
       ),
       tag("6-3.electives.aus", "Cross-cutting: ≥2 electives must be Advanced Undergraduate Subjects (AUS)", {
         allowedIds: ADVANCED_UNDERGRAD_SUBJECTS,
         count: 2,
         description:
-          "At least 2 of the 5 electives must be on the AUS list. " +
+          "At least 2 of the 6 electives must be on the AUS list. " +
           "A course can satisfy this AND a track requirement simultaneously.",
         sourceUrl: GROUPINGS_SOURCE_URL,
       }),
@@ -1263,7 +1311,14 @@ const major6_3_v2024: MajorRequirement = {
           "The same course can also satisfy a track requirement.",
         sourceUrl: GROUPINGS_SOURCE_URL,
       }),
-    ]),
+    ],
+    {
+      restrictedElectiveRule: {
+        flexChildId: "6-3.electives.flex",
+        consumeFromChildIds: ["6-3.electives.cs1", "6-3.electives.cs_aid_ee"],
+      },
+    },
+  ),
   ]),
 };
 
@@ -1285,6 +1340,8 @@ const major6_4_v2024: MajorRequirement = {
     girAll("6-4", {
       restNote: "Satisfied by 6.1200[J] and 18.C06[J] in the Departmental Program.",
     }),
+    sbUnitsOutsideGir("6-4"),
+
     all("6-4.core", "Fundamentals", [
       eecsIntroProgramming("6-4"),
       course("6-4.core.6.1010", "6.1010 Fundamentals of Programming", ["6.1010", "6.009"]),

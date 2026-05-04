@@ -11,9 +11,16 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Course, CourseIndex, EmbeddingIndex } from "@/lib/data/types";
+import { COURSE_ID_FALLBACKS } from "@/lib/data/courseFallbacks";
 
 let coursesCache: Course[] | null = null;
 let courseByIdCache: Map<string, Course> | null = null;
+
+function mergeFallbackCourses(courses: Course[]): Course[] {
+  const ids = new Set(courses.map((c) => c.id));
+  const extras = COURSE_ID_FALLBACKS.filter((c) => !ids.has(c.id));
+  return extras.length === 0 ? courses : [...courses, ...extras];
+}
 let embeddingsCache: EmbeddingIndex | null = null;
 
 async function loadJson<T>(rel: string): Promise<T> {
@@ -25,8 +32,9 @@ async function loadJson<T>(rel: string): Promise<T> {
 export async function getCourses(): Promise<Course[]> {
   if (coursesCache) return coursesCache;
   const idx = await loadJson<CourseIndex>("data/build/courses.json");
-  coursesCache = idx.courses;
-  courseByIdCache = new Map(idx.courses.map((c) => [c.id, c]));
+  const merged = mergeFallbackCourses(idx.courses);
+  coursesCache = merged;
+  courseByIdCache = new Map(merged.map((c) => [c.id, c]));
   return coursesCache;
 }
 

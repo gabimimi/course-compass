@@ -157,15 +157,16 @@ function normalize(c: FireRoadCourse): Course | null {
  *   - All Course 6 subjects.
  *   - All subjects with a HASS attribute (for HASS planning).
  *   - All subjects with a CI-H or CI-HW attribute.
- *   - Math (18.x), Physics (8.x), Chemistry (5.x), Biology (7.x) — common
- *     pre-reqs for Course 6 majors.
+ *   - Math (18.x), Physics (8.x), Chemistry (5.x), Biology (7.x), Materials (3.x;
+ *     e.g. 3.091 for the chemistry GIR) — common pre-reqs for Course 6 majors.
+ *   - Comparative Media Studies (CMS.xxx), common HASS / breadth subjects.
  *   - Subjects cross-listed with any kept Course 6 subject.
  */
 function shouldKeep(c: Course, course6Ids: Set<string>): boolean {
   if (c.department === "6") return true;
   if (c.hassAttribute) return true;
   if (c.communicationRequirement) return true;
-  if (["18", "8", "5", "7"].includes(c.department)) return true;
+  if (["18", "8", "5", "7", "3", "CMS"].includes(c.department)) return true;
   // Cross-listed with a Course 6 subject?
   if (c.jointSubjects.some((id) => course6Ids.has(id))) return true;
   if (c.meetsWith.some((id) => course6Ids.has(id))) return true;

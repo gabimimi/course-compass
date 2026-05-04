@@ -1,9 +1,10 @@
 /**
  * “EECS” subject bucket from the Fall 2026 / Fall 2025+ 6-3 degree chart
  * (“All subjects that satisfy departmental undergraduate requirements in 6-1 … 6-5 …”).
- * Used for the fifth elective slot (“restricted elective”).
+ * Used for the two restricted elective slots (six elective subjects total with four track subjects).
  */
 export const EECS_CHART_SUBJECTS: string[] = [
+  "3.091",
   "18.03",
   "18.032",
   "18.05",

@@ -91,6 +91,12 @@ function walkTree(
     if (course && courseMatchesDept(course, node)) {
       lines.push(`  - [department rule] ${node.title} (node id: ${node.id})`);
     }
+  } else if (node.kind === "units_outside_gir") {
+    if (course && !course.girAttribute) {
+      lines.push(
+        `  - [units outside GIR] ${node.title} (node id: ${node.id}) — counts toward ≥${node.minUnits} units if no GIR tag on catalog row`,
+      );
+    }
   }
 
   if (node.kind === "all" || node.kind === "any") {
