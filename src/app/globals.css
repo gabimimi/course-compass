@@ -1,26 +1,145 @@
 @import "tailwindcss";
 
+/* MIT EECS brand (hex colors from official palette) + ChatGPT-style gray canvas */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Wordmark / hex */
+  --eecs-magenta: #b23a8c;
+  --eecs-purple: #6a3d9a;
+  --eecs-cyan: #56b4d3;
+
+  --background: #ececf1;
+  --header-bg: #f7f7f8;
+  --foreground: #0d0d0d;
+  --muted: #5e5e5e;
+  --border: #d1d1d6;
+  --card: #ffffff;
+  --sidebar-bg: var(--eecs-purple);
+  --user-bubble: #e3f3f8;
+  --user-bubble-text: #0d0d0d;
+  /* Primary actions: Course 6 purple; accents use cyan / magenta in components */
+  --primary: var(--eecs-purple);
+  --primary-foreground: #ffffff;
+  --accent: #e8e8ea;
+  --ring: color-mix(in srgb, var(--eecs-cyan) 28%, transparent);
+  --composer-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04),
+    0 4px 20px rgba(0, 0, 0, 0.06);
+
+  /* Degree progress / checklist — EECS palette (cyan = on track, magenta = attention) */
+  --progress-stat-on-track: #157286;
+  --progress-stat-remaining: #9c3276;
+  --progress-complete-row-bg: color-mix(in srgb, var(--eecs-cyan) 16%, var(--card));
+  --progress-complete-border: color-mix(in srgb, var(--eecs-cyan) 48%, var(--border));
+  --progress-partial-border: color-mix(in srgb, var(--eecs-magenta) 48%, var(--border));
+  --progress-note-bg: color-mix(in srgb, var(--eecs-purple) 8%, var(--card));
+  --progress-note-border: color-mix(in srgb, var(--eecs-magenta) 30%, var(--border));
+  --progress-note-text: #4a2f58;
+  --progress-check-fill: var(--eecs-cyan);
+  --progress-partial-icon: var(--eecs-magenta);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #343541;
+    --header-bg: #2d2d30;
+    --foreground: #ececf1;
+    --muted: #c5c5d2;
+    --border: #565869;
+    --card: #40414f;
+    --sidebar-bg: #202123;
+    --user-bubble: color-mix(in srgb, var(--eecs-cyan) 16%, var(--card));
+    --user-bubble-text: #ececf1;
+    --primary: #7c5aa6;
+    --primary-foreground: #ffffff;
+    --accent: #40414f;
+    --ring: color-mix(in srgb, var(--eecs-cyan) 25%, transparent);
+    --composer-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06),
+      0 4px 24px rgba(0, 0, 0, 0.25);
+
+    --progress-stat-on-track: #7dd3ea;
+    --progress-stat-remaining: #f0a8d8;
+    --progress-complete-row-bg: color-mix(in srgb, var(--eecs-cyan) 14%, var(--card));
+    --progress-complete-border: color-mix(in srgb, var(--eecs-cyan) 42%, var(--border));
+    --progress-partial-border: color-mix(in srgb, var(--eecs-magenta) 42%, var(--border));
+    --progress-note-bg: color-mix(in srgb, var(--eecs-purple) 18%, var(--card));
+    --progress-note-border: color-mix(in srgb, var(--eecs-magenta) 36%, var(--border));
+    --progress-note-text: #ecd9f2;
+    --progress-check-fill: #56b4d3;
+    --progress-partial-icon: #e080bc;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
+
+/* Product title in sidebar — Fredoka from layout (--font-compass-brand). */
+.font-compass-brand {
+  font-family: var(--font-compass-brand), var(--font-geist-sans), ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+/* Markdown content styling for chat bubbles. */
+.prose-chat p { margin: 0.4rem 0; line-height: 1.6; }
+.prose-chat ul { list-style: disc; padding-left: 1.25rem; margin: 0.4rem 0; }
+.prose-chat ol { list-style: decimal; padding-left: 1.25rem; margin: 0.4rem 0; }
+.prose-chat li { margin: 0.2rem 0; }
+.prose-chat code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  background: color-mix(in srgb, var(--eecs-cyan) 12%, var(--card));
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.9em;
+  border: 1px solid color-mix(in srgb, var(--eecs-cyan) 25%, var(--border));
+}
+.prose-chat a {
+  color: var(--eecs-purple);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-weight: 500;
+}
+.prose-chat a:hover {
+  color: var(--eecs-magenta);
+}
+.prose-chat blockquote {
+  border-left: 3px solid var(--eecs-cyan);
+  padding-left: 0.75rem;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0.6rem 0;
+  background: color-mix(in srgb, var(--eecs-magenta) 4%, var(--card));
+  padding: 0.5rem 0.75rem 0.5rem 0.9rem;
+  border-radius: 0 0.35rem 0.35rem 0;
+}
+.prose-chat strong { font-weight: 600; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 {
+  font-weight: 600;
+  margin: 0.6rem 0 0.3rem;
+}
+.prose-chat img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Subtle scrollbar (Chat-like) */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--border) 85%, transparent); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 28%, transparent); }
